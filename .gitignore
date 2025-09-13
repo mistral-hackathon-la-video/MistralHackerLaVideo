@@ -16,4 +16,5 @@ frontend/
 **/__pycache__/
 **/*.mp4
 **/*.mov
+**/petstore-mcp-typescript/
 .DS_Store
