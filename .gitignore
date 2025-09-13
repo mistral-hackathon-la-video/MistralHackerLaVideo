@@ -2,6 +2,7 @@
 hack_env/*
 frontend/
 
+.venv
 **/node_modules/
 **/.next/
 **/.env
@@ -13,6 +14,6 @@ frontend/
 **/.env.test
 **/.env.production
 **/__pycache__/
-**/tst/
 **/*.mp4
 **/*.mov
+.DS_Store

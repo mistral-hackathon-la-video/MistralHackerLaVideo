@@ -16,18 +16,25 @@ from pathlib import Path
 import logging
 import time
 
+from kokoro import KPipeline
+import whisper
+import torch
+import torchaudio
+
+
 
 import traceback
 import soundfile as sf
 import shutil
 
-
-try:
+try :
     import mlx_whisper
 except ImportError:
     mlx_whisper = None
+    print("mlx_whisper not available")
 
-from type import Text, Caption, Figure, Equation, Headline, RichContent, CreatedIllustration
+
+from script_processing.type import Text, Caption, Figure, Equation, Headline, RichContent, CreatedIllustration
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +59,10 @@ def _parse_script(script: str) -> list[RichContent | Text]:
     content = []
     # For each line, parse it and create the corresponding object
     for line in lines:
-        if line.startswith(r"\Figure: "):
+        # Skip empty lines
+        if not line.strip():
+            continue
+        elif line.startswith(r"\Figure: "):
             figure_content = line.replace(r"\Figure: ", "")
             figure = Figure(content=figure_content)
             content.append(figure)
@@ -101,6 +111,99 @@ def _make_caption_whisper(result: dict) -> list[Caption]:
             captions.append(caption)
     return captions
 
+def _generate_audio_and_caption_kokoro(
+    script_contents: list[RichContent | Text],
+    temp_dir: Path = Path(tempfile.gettempdir()),
+    offset: float = 0.5,
+) -> list[RichContent | Text]:
+    """Generate audio and caption for each text segment in the script using Kokoro TTS
+
+    Parameters
+    ----------
+    script_contents : list[RichContent  |  Text]
+        List of RichContent or Text objects
+    temp_dir : Path, optional
+        Temporary directory to store the audio files, by default Path(tempfile.gettempdir())
+    offset : float, optional
+        Offset between each text segment, by default 0.5
+
+    Returns
+    -------
+    list[RichContent | Text]
+        List of RichContent or Text objects with audio and caption
+    """
+    DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY", "")
+    
+    # Initialize Kokoro pipeline with American English
+    pipeline = KPipeline(lang_code='a')  # 'a' for American English
+    
+    # If the temp directory does not exist, create it
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+    
+    try:
+        for i, script_content in enumerate(script_contents):
+            match script_content:
+                case RichContent(content=content):
+                    pass
+                case Text(content=content, audio=None, captions=None):
+                    logger.info(f"Generating audio and caption for text {i} using Kokoro")
+                    audio_path = (temp_dir / f"audio_{i}.wav").absolute().as_posix()
+                    
+                    logger.info(f"Generating audio {i} at {audio_path}")
+                    
+                    # Generate audio using Kokoro
+                    generator = pipeline(content, voice='af_heart', speed=1.0)
+                    
+                    # Get the first (and typically only) result from the generator
+                    for j, (gs, ps, audio) in enumerate(generator):
+                        if j == 0:  # Take the first result
+                            # Save audio using soundfile with 24kHz sample rate (Kokoro default)
+                            sf.write(audio_path, audio, 24000)
+                            break
+                    
+                    # Load audio for duration calculation
+                    audio_tensor, sr = torchaudio.load(audio_path)
+                    total_audio_duration = audio_tensor.size(1) / sr
+                    total_audio_duration += offset
+                    
+                    script_content.audio_path = audio_path
+                    script_content.end = total_audio_duration
+                    
+
+                    if (sys.platform == 'darwin'
+                        and hasattr(os, 'uname') 
+                        and os.uname().machine in ('arm64', 'aarch64')
+                        and mlx_whisper is not None):
+                        result = mlx_whisper.transcribe(audio=audio_path, word_timestamps=True)
+                        script_content.captions = _make_caption_whisper(result)
+                        
+                    logger.info(
+                        f"Generated audio and caption for text {i}, duration: {total_audio_duration}"
+                    )
+
+    except Exception as e:
+        logger.error(f"Error generating audio and caption with Kokoro: {e}, {traceback.format_exc()}")
+        raise e
+
+    offset_fix = 0
+    # Initially all text caption start at time 0
+    # We need to offset them by the end of the previous text
+    for i, script_content in enumerate(script_contents):
+        if not (isinstance(script_content, Text)):
+            continue
+        if not script_content.captions:
+            continue
+        for caption in script_content.captions:
+            caption.start += offset_fix
+            caption.end += offset_fix
+        script_content.start = offset_fix
+        if script_content.end:
+            script_content.end = script_content.end + offset_fix
+        else:
+            script_content.end = script_content.captions[-1].end
+        offset_fix = script_content.end
+    return script_contents
 
 
 
@@ -387,8 +490,77 @@ def generate_audio_and_caption(
     """
     script_contents = _parse_script(script)
     try:
-        script_contents = _generate_audio_and_caption_elevenlabs(script_contents)
+        # script_contents = _generate_audio_and_caption_elevenlabs(script_contents)
+        script_contents = _generate_audio_and_caption_kokoro(script_contents)
     except Exception as e:
         logger.error(f"Error generating audio and caption: {e}, {traceback.format_exc()}")
         raise e
     return script_contents
+
+def generate_assets(
+    script: str,
+    method: Literal["elevenlabs", "lmnt", "kokoro"] = "kokoro",
+    mp3_output: str = "public/audio.wav",
+    srt_output: str = "public/subtitles.srt",
+    rich_output: str = "public/rich.json",
+) -> float:
+    """Generate audio, caption, and rich content assets from script
+
+    Parameters
+    ----------
+    script : str
+        The video script
+    method : "elevenlabs" | "lmnt" | "kokoro", optional
+        The method to generate audio, by default "kokoro"
+    mp3_output : str, optional
+        The output mp3 file path, by default "public/audio.wav"
+    srt_output : str, optional
+        The output srt file path, by default "public/output.srt"
+    rich_output : str, optional
+        The output rich content json file path, by default "public/output.json
+
+    Returns
+    -------
+    float
+        The total duration of the audio
+    """
+    logger.info(f"Generating assets from script: {script}")
+
+    # Create a temporary directory
+    temp_dir = tempfile.TemporaryDirectory()
+    logger.info(f"Created temporary directory: {temp_dir}")
+
+    # Create parent directory for mp3_output, srt_output, and rich_output
+    os.makedirs(os.path.dirname(mp3_output), exist_ok=True)
+    os.makedirs(os.path.dirname(srt_output), exist_ok=True)
+    os.makedirs(os.path.dirname(rich_output), exist_ok=True)
+
+    # Generate audio and caption for each text content
+    logger.info(f"Generating audio and caption for script: {script}")
+    script_contents = generate_audio_and_caption(script)
+    # Fill the time for each RichContent
+    logger.info(f"Filling time for each RichContent: {script_contents}")
+    script_contents = fill_rich_content_time(script_contents)
+
+    # Separate rich content and text content
+    rich_content = [c for c in script_contents if isinstance(c, RichContent)]
+    text_content = [c for c in script_contents if isinstance(c, Text)]
+
+    # Export mp3
+    logger.info(f"Exporting mp3: {text_content}")
+    export_mp3(text_content, mp3_output, offset=0.5)
+
+    # Export srt
+    logger.info(f"Exporting srt: {mp3_output}")
+    export_srt(mp3_output, srt_output)
+
+    # Export rich content
+    logger.info(f"Exporting rich content: {rich_content}")
+    export_rich_content_json(rich_content, rich_output)
+
+    # Remove temp_dir
+    logger.info(f"Removing temporary directory: {temp_dir}")
+    temp_dir.cleanup()
+
+    total_duration = text_content[-1].end if text_content[-1].end else 0
+    return total_duration

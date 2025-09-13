@@ -30,9 +30,9 @@ def get_free_port():
 @dataclass
 class CompositionProps:
     durationInSeconds: int = 5
-    subtitlesFileName: str = "video_remotion/public/output.srt"
-    audioFileName: str = "video_remotion/public/output.wav"
-    richContentFileName: str = "video_remotion/public/output.json"
+    subtitlesFileName: str = "public/output.srt"
+    audioFileName: str = "public/output.wav"
+    richContentFileName: str = "public/output.json"
     waveColor: str = "#a3a5ae"
     subtitlesLinePerPage: int = 2
     subtitlesLineHeight: int = 98
@@ -66,7 +66,7 @@ def expose_directory(directory: Path):
 
 def process_video(
     input: Path,
-    output: Path = Path("video_remotion/public/output.mp4"),
+    output: Path = Path("public/output.mp4"),
     concurrency: int = OPTIMAL_CONCURRENCY,
 ):
     # Get the paper id,
