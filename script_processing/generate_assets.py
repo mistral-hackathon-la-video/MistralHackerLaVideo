@@ -371,14 +371,12 @@ def export_rich_content_json(rich_content: list[RichContent], out_path: str) -> 
 
 
 def generate_audio_and_caption(
-    method: Literal["elevenlabs", "lmnt", "kokoro"], script: str
+    script: str
 ) -> list[RichContent | Text]:
     """Generate audio and caption for the script
 
     Parameters
     ----------
-    method : Literal["elevenlabs", "lmnt", "kokoro"]
-        Method to generate audio and caption
     script : str
         Script to generate audio and caption
 
@@ -388,12 +386,9 @@ def generate_audio_and_caption(
         List of RichContent or Text objects with audio and caption
     """
     script_contents = _parse_script(script)
-    if method == "elevenlabs":
+    try:
         script_contents = _generate_audio_and_caption_elevenlabs(script_contents)
-    elif method == "lmnt":
-        script_contents = _generate_audio_and_caption_lmnt(script_contents)
-    elif method == "kokoro":
-        script_contents = _generate_audio_and_caption_kokoro(script_contents)
-    else:
-        raise ValueError(f"Unknown method: {method}")
+    except Exception as e:
+        logger.error(f"Error generating audio and caption: {e}, {traceback.format_exc()}")
+        raise e
     return script_contents
