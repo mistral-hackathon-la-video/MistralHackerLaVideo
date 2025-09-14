@@ -9,7 +9,8 @@ This is a MCP Mistral Hackathon project.
 - Deep Video overview generation (after a deep research)
 - Fast video overview generation
 - Video Tutorial generation
-- poadcast generation
+- Poadcast generation
+- Deep Podcast Generation
 
 ## setup
 ```bash
@@ -20,6 +21,6 @@ uv sync
 
 ## test : 
 ```bash
-uv run tst/tst.py
+uv run main.py
 ```
 The video will be generated in the `public` directory.

@@ -23,4 +23,5 @@ dependencies = [
     "markdownify>=1.2.0",
     "markthat>=1.2.14",
     "firecrawl-py>=1.10.0",
+    "boto3>=1.40.30",
 ]
