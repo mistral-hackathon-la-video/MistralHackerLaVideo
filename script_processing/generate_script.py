@@ -174,6 +174,7 @@ Your output is a JSON with the following structure :
 }
 
 Attention : No links are allowed. use no links.
+Attention : USE NO EQUATIONS. Equations are forbidden from the output. DO NOT USE EQUATIONS. DO NOT USE $ or [ or \begin{...} or \end{...}. DO NOT MAKE TABLES.
 https://... is forbidden from the ouput. DO NOT USE FIGURES. DO NOT USE LINKS. LINKS ARE FORBIDDEN FROM THE OUPUT
 """
 
@@ -478,20 +479,20 @@ def _fetch_paper_html(url):
         return None
 
 
-def main():
-    # Example usage
-    url = "https://ar5iv.labs.arxiv.org/html/1706.03762"
-    paper_markdown = _fetch_paper_html(url)
+# def main():
+#     # Example usage
+#     url = "https://ar5iv.labs.arxiv.org/html/1706.03762"
+#     paper_markdown = _fetch_paper_html(url)
 
-    paper_id = "1706.03762"
-    method = "openrouter"  # Change this to test other methods
-    mode = "podcast"
+#     paper_id = "1706.03762"
+#     method = "openrouter"  # Change this to test other methods
+#     mode = "podcast"
 
-    try:
-        script = process_script(method=method, paper_markdown=paper_markdown, paper_id=paper_id, from_pdf=False, mode="podcast")
-        print("Generated script:\n", script)
-    except ValueError as e:
-        print(f"Error: {e}")
+#     try:
+#         script = process_script(method=method, paper_markdown=paper_markdown, paper_id=paper_id, from_pdf=False, mode="podcast")
+#         print("Generated script:\n", script)
+#     except ValueError as e:
+#         print(f"Error: {e}")
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

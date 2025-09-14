@@ -15,6 +15,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from dataclasses import dataclass, asdict
 from enum import Enum
+import boto3
+from botocore.client import Config
 
 # Import our video generation functions
 from script_processing.generate_assets import generate_assets, generate_audio_and_caption, export_mp3
@@ -99,6 +101,73 @@ def update_job_status(job_id: str, status: JobStatus, progress: float = None, re
 def get_job(job_id: str) -> Optional[JobInfo]:
     """Get job information by ID"""
     return jobs.get(job_id)
+
+def upload_to_s3(local_file_path: str, file_type: Literal["video", "audio"]) -> str:
+    """
+    Upload a file to S3 and return a presigned URL for browser streaming.
+    
+    Args:
+        local_file_path: Path to the local file to upload
+        file_type: Type of file ("video" or "audio") to determine content type
+    
+    Returns:
+        Presigned URL for browser streaming
+    """
+    try:
+        # Initialize S3 client
+        s3 = boto3.client(
+            "s3", 
+            region_name="us-east-2",
+            endpoint_url="https://s3.us-east-2.amazonaws.com",
+            config=Config(signature_version="s3v4")
+        )
+        
+        bucket = "vixtral"  # Your actual bucket name
+        
+        # Determine content type and file extension based on file type
+        if file_type == "video":
+            content_type = "video/mp4"
+            extension = ".mp4"
+        elif file_type == "audio":
+            content_type = "audio/mpeg"
+            extension = ".mp3"
+        else:
+            raise ValueError(f"Unsupported file type: {file_type}")
+        
+        # Generate unique key for S3
+        file_uuid = str(uuid.uuid4())
+        key = f"{file_type}-{file_uuid}{extension}"
+        
+        logger.info(f"Uploading {local_file_path} to s3://{bucket}/{key}...")
+        
+        # Upload the file
+        s3.upload_file(
+            local_file_path, 
+            bucket, 
+            key, 
+            ExtraArgs={"ContentType": content_type}
+        )
+        
+        logger.info("Upload complete, generating presigned URL...")
+        
+        # Generate a presigned GET URL (valid for 24 hours)
+        url = s3.generate_presigned_url(
+            ClientMethod="get_object",
+            Params={
+                "Bucket": bucket, 
+                "Key": key,
+                "ResponseContentDisposition": "inline",  # Display in browser instead of download
+                "ResponseContentType": content_type
+            },
+            ExpiresIn=86400,  # URL expires in 24 hours
+        )
+        
+        logger.info(f"Generated streaming URL: {url}")
+        return url
+        
+    except Exception as e:
+        logger.error(f"Failed to upload file to S3: {str(e)}")
+        raise Exception(f"S3 upload failed: {str(e)}")
 
 # Async wrapper functions for background processing
 async def _async_generate_assets(job_id: str, script: str, method: str, output_dir: str):
@@ -192,7 +261,7 @@ async def _async_generate_video(job_id: str, input_dir: str, output_video: str, 
         logger.error(f"Job {job_id}: {error_message}")
         update_job_status(job_id, JobStatus.FAILED, error_message=error_message)
 
-async def _async_generate_complete_video_from_url(job_id: str, content_url: str, method: str, output_dir: str, output_video: str, concurrency: int):
+async def _async_generate_complete_video_from_url(job_id: str, content_url: str, method: str, output_dir: str, output_video: str, concurrency: int, ressources_repport: str = ""):
     """Background task for complete video generation pipeline from URL"""
     try:
         update_job_status(job_id, JobStatus.IN_PROGRESS, progress=0.0)
@@ -238,10 +307,22 @@ async def _async_generate_complete_video_from_url(job_id: str, content_url: str,
         if video_job.status != JobStatus.COMPLETED:
             raise Exception(f"Video generation failed: {video_job.error_message}")
         
+        # Upload video to S3 and get streaming URL
+        logger.info(f"Job {job_id}: Uploading video to S3...")
+        update_job_status(job_id, JobStatus.IN_PROGRESS, progress=95.0)
+        
+        streaming_url = await asyncio.get_event_loop().run_in_executor(
+            None,
+            upload_to_s3,
+            video_job.result["output_video"],
+            "video"
+        )
+        
         # Combine results
         result = {
             "status": "success",
             "output_video": video_job.result["output_video"],
+            "streaming_url": streaming_url,
             "duration": assets_job.result["duration"],
             "script": script,
             "source_url": content_url,
@@ -285,10 +366,22 @@ async def _async_generate_complete_video(job_id: str, script: str, method: str, 
         if video_job.status != JobStatus.COMPLETED:
             raise Exception(f"Video generation failed: {video_job.error_message}")
         
+        # Upload video to S3 and get streaming URL
+        logger.info(f"Job {job_id}: Uploading video to S3...")
+        update_job_status(job_id, JobStatus.IN_PROGRESS, progress=95.0)
+        
+        streaming_url = await asyncio.get_event_loop().run_in_executor(
+            None,
+            upload_to_s3,
+            video_job.result["output_video"],
+            "video"
+        )
+        
         # Combine results
         result = {
             "status": "success",
             "output_video": video_job.result["output_video"],
+            "streaming_url": streaming_url,
             "duration": assets_job.result["duration"],
             "assets": {
                 "audio_file": assets_job.result["audio_file"],
@@ -326,6 +419,7 @@ async def _async_generate_complete_podcast(job_id: str, content_url: str, output
             process_script,
             "openrouter",  # method
             contain_markdown,  # paper_markdown
+            False,  # from_pdf
             "podcast"  # mode
         )
         update_job_status(job_id, JobStatus.IN_PROGRESS, progress=50.0)
@@ -356,11 +450,23 @@ async def _async_generate_complete_podcast(job_id: str, content_url: str, output
             str(output_file)
         )
         
+        # Upload podcast to S3 and get streaming URL
+        logger.info(f"Job {job_id}: Uploading podcast to S3...")
+        update_job_status(job_id, JobStatus.IN_PROGRESS, progress=95.0)
+        
+        streaming_url = await asyncio.get_event_loop().run_in_executor(
+            None,
+            upload_to_s3,
+            str(output_file),
+            "audio"
+        )
+        
         update_job_status(job_id, JobStatus.IN_PROGRESS, progress=100.0)
         
         result = {
             "status": "success",
             "podcast_file": str(output_file),
+            "streaming_url": streaming_url,
             "voice": voice,
             "script": script,
             "source_url": content_url
@@ -400,7 +506,13 @@ async def check_job_status(
         "start_time": 1234567890.0,
         "end_time": 1234567895.0,
         "duration": 5.0,
-        "result": {...},
+        "result": {
+            "status": "success",
+            "output_video": "local/path/to/video.mp4",
+            "streaming_url": "https://s3.us-east-2.amazonaws.com/vixtral/video-uuid.mp4?...",
+            "podcast_file": "local/path/to/podcast.mp3",
+            "note": "streaming_url provides direct browser access for completed jobs"
+        },
         "error_message": "error details if failed"
     }
     """
@@ -568,7 +680,7 @@ async def generate_video_assets(
 
 @mcp.tool(
     title="Generate Video",
-    description="Generate a video from pre-existing assets (audio.wav, subtitles.srt, rich.json). Returns a job ID for tracking progress. Use check_job_status to monitor completion."
+    description="Generate a video from pre-existing assets (audio.wav, subtitles.srt, rich.json). Automatically uploads to S3 and returns browser streaming URL. Returns a job ID for tracking progress. Use check_job_status to monitor completion."
 )
 async def generate_video_from_assets(
     input_dir: str = Field(description="Directory containing audio.wav, subtitles.srt, and rich.json files"),
@@ -602,7 +714,9 @@ async def generate_video_from_assets(
     Output format (async_mode=false):
     {
         "status": "success",
-        "output_video": "public/output.mp4"
+        "output_video": "public/output.mp4",
+        "streaming_url": "https://s3.us-east-2.amazonaws.com/vixtral/video-uuid.mp4?...",
+        "note": "streaming_url provides direct browser streaming access to the generated video"
     }
     """
     try:
@@ -676,7 +790,7 @@ async def generate_video_from_assets(
 
 @mcp.tool(
     title="Generate Podcast",
-    description="Generate a podcast (audio file) from a URL. Returns a job ID for tracking progress. Use check_job_status to monitor completion."
+    description="Generate a podcast (audio file) from a URL. Automatically uploads to S3 and returns browser streaming URL. Returns a job ID for tracking progress. Use check_job_status to monitor completion."
 )
 async def generate_podcast_from_url(
     content_url: str = Field(description="URL of the content to generate a podcast from"),
@@ -711,9 +825,11 @@ async def generate_podcast_from_url(
     {
         "status": "success",
         "podcast_file": "public/podcast.wav",
+        "streaming_url": "https://s3.us-east-2.amazonaws.com/vixtral/audio-uuid.mp3?...",
         "voice": "female",
         "script": "Generated script...",
-        "source_url": "https://example.com/article"
+        "source_url": "https://example.com/article",
+        "note": "streaming_url provides direct browser streaming access to the generated podcast"
     }
     """
     try:
@@ -749,7 +865,7 @@ async def generate_podcast_from_url(
             contain_markdown = process_article_firecrawl(content_url)
             
             # Step 2: Generate script from markdown
-            script = process_script("openrouter", contain_markdown, "podcast")
+            script = process_script("openrouter", contain_markdown, from_pdf=False, mode="podcast")
             
             # Step 3: Generate podcast from script
             output_path = Path(output_file)
@@ -787,7 +903,7 @@ async def generate_podcast_from_url(
 
 @mcp.tool(
     title="Generate Complete Video",
-    description="Complete video generation pipeline: generate assets from script and then create video. Returns a job ID for tracking progress. Use check_job_status to monitor completion."
+    description="Complete video generation pipeline: generate assets from script and then create video. Automatically uploads to S3 and returns browser streaming URL. Returns a job ID for tracking progress. Use check_job_status to monitor completion."
 )
 async def generate_complete_video(
     containt_url: Optional[str] = Field(description="URL of the content to generate a video from"),
@@ -795,7 +911,8 @@ async def generate_complete_video(
     output_dir: Optional[str] = Field(default="public", description="Output directory for generated files"),
     output_video: Optional[str] = Field(default="public/output.mp4", description="Path for the output video file"),
     concurrency: Optional[int] = Field(default=6, description="Video rendering concurrency level (1-10)"),
-    async_mode: Optional[bool] = Field(default=True, description="If True, returns job ID immediately. If False, waits for completion (may timeout)")
+    async_mode: Optional[bool] = Field(default=True, description="If True, returns job ID immediately. If False, waits for completion (may timeout)"),
+    ressources_report: Optional[str] = Field(default="", description="Your detailed report about the previous paper that are cited by the paper")
 ) -> Dict[str, str]:
     """
     Complete video generation from script to final video.
@@ -813,6 +930,7 @@ async def generate_complete_video(
         "output_video": "public/output.mp4",
         "concurrency": 6,
         "async_mode": true
+        "ressources_report": ""
     }
     
     Output format (async_mode=true):
@@ -826,12 +944,14 @@ async def generate_complete_video(
     {
         "status": "success",
         "output_video": "public/output.mp4",
+        "streaming_url": "https://s3.us-east-2.amazonaws.com/vixtral/video-uuid.mp4?...",
         "duration": "12.5",
         "assets": {
             "audio_file": "public/audio.wav",
             "subtitles_file": "public/subtitles.srt",
             "rich_content_file": "public/rich.json"
-        }
+        },
+        "note": "streaming_url provides direct browser streaming access to the generated video"
     }
     """
     try:
@@ -848,11 +968,14 @@ async def generate_complete_video(
                 "status": "error",
                 "message": f"Invalid method '{method}'. Available methods: {', '.join(valid_methods)}"
             }
+        if ressources_report:
+            ressources_report = """Use this during your script generation to contextualize the video and provide more accurate information.
+Here is the report of the previous paper that are cited by the paper: """ + ressources_report
         
         if async_mode:
             # Create job and start background task immediately
             job_id = create_job("complete_video")
-            asyncio.create_task(_async_generate_complete_video_from_url(job_id, containt_url, method, output_dir, output_video, concurrency))
+            asyncio.create_task(_async_generate_complete_video_from_url(job_id, containt_url, method, output_dir, output_video, concurrency, ressources_report))
             
             return {
                 "status": "started",
@@ -868,7 +991,7 @@ async def generate_complete_video(
             )
             script = await asyncio.get_event_loop().run_in_executor(
                 None,
-                process_script,
+                process_script+ressources_report,
                 "openrouter",  # method
                 contain_markdown,  # paper_markdown
                 False,  # from_pdf
@@ -939,6 +1062,32 @@ def get_methods_info() -> str:
 - **Strengths**: High quality, reliable
 - **Requirements**: LMNT_API_KEY environment variable
 
+# 🎬 Automatic S3 Upload & Browser Streaming
+
+## ✨ Key Feature: Direct Browser Streaming Links
+**All generated videos and podcasts are automatically uploaded to S3 and return browser-streamable URLs!**
+
+### What You Get:
+- **Local File Path**: For download/local access
+- **Streaming URL**: Direct browser streaming link (24-hour expiration)
+- **Content Type**: Properly configured for inline browser playback
+
+### Example Results:
+```json
+{
+  "output_video": "/local/path/to/video.mp4",
+  "streaming_url": "https://s3.us-east-2.amazonaws.com/vixtral/video-abc123.mp4?...",
+  "podcast_file": "/local/path/to/podcast.mp3", 
+  "streaming_url": "https://s3.us-east-2.amazonaws.com/vixtral/audio-def456.mp3?..."
+}
+```
+
+### Browser Compatibility:
+- ✅ Direct video/audio streaming in all modern browsers
+- ✅ No download required - plays inline
+- ✅ Mobile-friendly streaming
+- ✅ Secure presigned URLs
+
 # Async Job Tracking System
 
 To bypass client-side timeouts, all video generation functions now support asynchronous execution:
@@ -947,7 +1096,7 @@ To bypass client-side timeouts, all video generation functions now support async
 1. **Start Job**: Call any video generation function with `async_mode: true` (default)
 2. **Get Job ID**: Receive a unique job ID immediately
 3. **Check Progress**: Use `check_job_status` with the job ID to monitor progress
-4. **Get Results**: When status is "completed", retrieve the final results
+4. **Get Results**: When status is "completed", retrieve the final results **including streaming URLs**
 
 ## Job Statuses
 - **pending**: Job created but not started
@@ -974,9 +1123,18 @@ do {
     jobStatus = await check_job_status({ job_id: jobId });
 } while (jobStatus.status === "pending" || jobStatus.status === "in_progress");
 
-// 4. Get results
+// 4. Get results including streaming URL
 if (jobStatus.status === "completed") {
-    console.log("Video ready:", jobStatus.result.output_video);
+    console.log("Video file:", jobStatus.result.output_video);
+    console.log("🎬 STREAMING URL:", jobStatus.result.streaming_url);
+    console.log("📺 Open this URL in any browser to stream the video!");
+    
+    // For podcasts:
+    if (jobStatus.result.podcast_file) {
+        console.log("Podcast file:", jobStatus.result.podcast_file);
+        console.log("🎧 STREAMING URL:", jobStatus.result.streaming_url);
+        console.log("🔊 Open this URL in any browser to stream the audio!");
+    }
 } else {
     console.error("Job failed:", jobStatus.error_message);
 }

@@ -1,5 +1,5 @@
 import { Composition, delayRender } from 'remotion';
-import { VistralComposition, calculateMetadata } from './VistralComp/Main';
+import { VistralComposition, calculateMetadata } from './ArxflixComp/Main';
 import './style.css';
 import 'katex/dist/katex.min.css';
 import {

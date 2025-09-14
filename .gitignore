@@ -28,3 +28,4 @@ public/subtitles.srt
 **/**exemple*.py
 firecrawl_example.py
 test.json
+boto_upload.py
