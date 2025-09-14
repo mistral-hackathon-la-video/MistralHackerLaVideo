@@ -1,0 +1,26 @@
+[project]
+name = "mistralhackerlavideo"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "elevenlabs>=2.15.0",
+    "kokoro==0.9.4",
+    "mlx-whisper>=0.4.3",
+    "pandas>=2.3.2",
+    "pip>=25.2",
+    "python-dotenv>=1.1.1",
+    "soundfile>=0.13.1",
+    "srt>=3.5.3",
+    "torchaudio>=2.8.0",
+    "openai-whisper>=1.1.10",
+    "mcp",
+    "black>=25.1.0",
+    "openai>=1.107.2",
+    "instructor>=1.11.3",
+    "beautifulsoup4>=4.13.5",
+    "markdownify>=1.2.0",
+    "markthat>=1.2.14",
+    "firecrawl-py>=1.10.0",
+]

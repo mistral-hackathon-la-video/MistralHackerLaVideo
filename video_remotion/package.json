@@ -1,0 +1,54 @@
+{
+  "name": "Vistral",
+  "version": "0.1.0",
+  "private": true,
+  "author": {
+    "name": "Julien Blanchon",
+    "email": "julien@blanchon.cc"
+  },
+  "dependencies": {
+    "@remotion/animation-utils": "4.0.331",
+    "@remotion/bundler": "4.0.331",
+    "@remotion/cli": "4.0.331",
+    "@remotion/google-fonts": "4.0.331",
+    "@remotion/lambda": "4.0.331",
+    "@remotion/media-utils": "4.0.331",
+    "@remotion/paths": "4.0.331",
+    "@remotion/player": "4.0.331",
+    "@remotion/preload": "4.0.331",
+    "@remotion/renderer": "4.0.331",
+    "@remotion/shapes": "4.0.331",
+    "@remotion/tailwind": "4.0.331",
+    "@remotion/zod-types": "4.0.331",
+    "katex": "^0.16.10",
+    "parse-srt": "1.0.0-alpha",
+    "react": "^18.2.0",
+    "react-dom": "^18.3.1",
+    "react-katex": "^3.0.1",
+    "remotion": "4.0.331",
+    "sonner": "^1.5.0",
+    "tailwind-merge": "^2.3.0",
+    "tailwindcss-animate": "^1.0.7",
+    "tailwindcss": "4.1.13",
+    "usehooks-ts": "^3.1.0",
+    "zod": "3.22.3"
+  },
+  "devDependencies": {
+    "@remotion/eslint-config": "4.0.331",
+    "@types/node": "18.7.23",
+    "@types/react": "18.3.1",
+    "@types/react-dom": "18.3.0",
+    "@types/react-katex": "^3.0.4",
+    "@types/web": "^0.0.143",
+    "eslint": "^8.43.0",
+    "prettier": "^3.2.5",
+    "tailwindcss": "^3.4.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  },
+  "scripts": {
+    "remotion": "remotion studio",
+    "render": "remotion render"
+  },
+  "packageManager": "pnpm@9.1.1"
+}
