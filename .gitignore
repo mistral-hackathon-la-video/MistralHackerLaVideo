@@ -18,3 +18,13 @@ frontend/
 **/*.mov
 **/petstore-mcp-typescript/
 .DS_Store
+**/*.md
+**/*test_*.py
+**/*.wav
+public/rich.json
+public/subtitles.srt
+*.txt
+**/*exemple*
+**/**exemple*.py
+firecrawl_example.py
+test.json

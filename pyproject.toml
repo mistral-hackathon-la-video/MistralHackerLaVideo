@@ -17,4 +17,10 @@ dependencies = [
     "openai-whisper>=1.1.10",
     "mcp",
     "black>=25.1.0",
+    "openai>=1.107.2",
+    "instructor>=1.11.3",
+    "beautifulsoup4>=4.13.5",
+    "markdownify>=1.2.0",
+    "markthat>=1.2.14",
+    "firecrawl-py>=1.10.0",
 ]

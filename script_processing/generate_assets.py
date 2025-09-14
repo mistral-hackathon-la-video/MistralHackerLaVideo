@@ -42,6 +42,13 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
+
+VOICE_MAPPING = {
+    "female": "cgSgspJ2msm6clMCkdW9",
+    "male" : "EXAVITQuxST5mfrX0gnT",
+}
+
+
 def _parse_script(script: str) -> list[RichContent | Text]:
     """Parse the script and return a list of RichContent or Text objects
 
@@ -210,6 +217,8 @@ def _generate_audio_and_caption_kokoro(
 def _generate_audio_and_caption_elevenlabs(
     script_contents: list[RichContent | Text],
     temp_dir: Path = Path(tempfile.gettempdir()),
+    voice: Literal["female", "male"] = "female",
+    podcast: bool = False,
 ) -> list[RichContent | Text]:
     """Generate audio and caption for each text segment in the script.
     Use Whisper model to generate the captions
@@ -245,41 +254,26 @@ def _generate_audio_and_caption_elevenlabs(
                     # If audio_path don't exist, generate it
                     #if not os.path.exists(audio_path):
                     logger.info(f"Generating audio {i} at {audio_path}")
-                    script_content.audio = elevenlabs_client.generate(
+                    script_content.audio = elevenlabs_client.text_to_speech.convert(
                         text=content,
-                        voice=Voice(
-                            voice_id="cgSgspJ2msm6clMCkdW9",
-                            settings=VoiceSettings(
-                                stability=0.35,
-                                similarity_boost=0.8,
-                                style=0.0,
-                                use_speaker_boost=True,
-                            ),
+                        voice_id=VOICE_MAPPING[voice],
+                        voice_settings=VoiceSettings(
+                            stability=0.5,
+                            similarity_boost=0.8,
+                            style=0.0,
+                            use_speaker_boost=True,
                         ),
-                        model="eleven_turbo_v2",
+                        model_id="eleven_v3",
                     )
                     save(script_content.audio, audio_path)
 
-                    if DEEPGRAM_API_KEY=="" and not (sys.platform == 'darwin'
-                    and hasattr(os, 'uname') 
-                    and os.uname().machine in ('arm64', 'aarch64')):
-                        audio, sr = torchaudio.load(audio_path)
-                        model = whisper.load_model("base.en")
-                        option = whisper.DecodingOptions(
-                            language="en",
-                            fp16=True,
-                            without_timestamps=False,
-                            task="transcribe",
-                        )
-                        result = model.transcribe(audio_path, word_timestamps=True)
-                        script_content.captions = _make_caption_whisper(result)
-                        total_audio_duration = audio.size(1) / sr
-                    
+
                     ##TODO USE vostral
-                    elif (sys.platform == 'darwin'
+                    if (sys.platform == 'darwin'
                     and hasattr(os, 'uname') 
                     and os.uname().machine in ('arm64', 'aarch64')
-                    and mlx_whisper is not None):
+                    and mlx_whisper is not None
+                    and not podcast):
                         result = mlx_whisper.transcribe(audio=audio_path,word_timestamps=True)
                         script_content.captions = _make_caption_whisper(result)
                         
@@ -287,7 +281,8 @@ def _generate_audio_and_caption_elevenlabs(
 
 
                     script_content.audio_path = audio_path
-                    script_content.end = total_audio_duration
+                    script_content.end = total_audio_duration if not podcast else 0
+
     except Exception as e:
 
         logger.error(f"Error generating audio and caption: {e}, {traceback.format_exc()}")
@@ -490,7 +485,7 @@ def generate_audio_and_caption(
     """
     script_contents = _parse_script(script)
     try:
-        # script_contents = _generate_audio_and_caption_elevenlabs(script_contents)
+        #script_contents = _generate_audio_and_caption_elevenlabs(script_contents)
         script_contents = _generate_audio_and_caption_kokoro(script_contents)
     except Exception as e:
         logger.error(f"Error generating audio and caption: {e}, {traceback.format_exc()}")

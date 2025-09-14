@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 script = """\Headline: Uni-MoE: Scaling Unified Multimodal LLMs with Mixture of Experts
-\Text: Welcome back to Arxflix! Today, we’re diving into a groundbreaking paper that explores new ways to scale Unified Multimodal Large Language Models (MLLMs) using the Mixture of Experts (MoE) architecture. The paper is titled "Uni-MoE: Scaling Unified Multimodal LLMs with Mixture of Experts".
+\Text: Welcome back to Vistral! Today, we’re diving into a groundbreaking paper that explores new ways to scale Unified Multimodal Large Language Models (MLLMs) using the Mixture of Experts (MoE) architecture. The paper is titled "Uni-MoE: Scaling Unified Multimodal LLMs with Mixture of Experts".
 
 \Figure: https://arxiv.org/html/2405.11273v1/extracted/5604403/figure/moe_intro.png
 \Text: This illustration provides a snapshot of the Uni-MoE model, highlighting its efficient handling of various modalities like text, images, audio, and video. Let’s break it down.
@@ -48,7 +48,7 @@ script = """\Headline: Uni-MoE: Scaling Unified Multimodal LLMs with Mixture of 
 \Headline: Conclusion
 \Text: Uni-MoE showcases the potential of MoE frameworks in advancing multimodal large language models. By efficiently managing computational resources and leveraging specialized experts, it sets a new standard for multimodal understanding.
 
-\Text: For more detailed insights, check out the paper and the code available on GitHub. Thanks for watching, and don’t forget to like, subscribe, and hit the bell icon for more research updates from Arxflix!
+\Text: For more detailed insights, check out the paper and the code available on GitHub. Thanks for watching, and don’t forget to like, subscribe, and hit the bell icon for more research updates from Vistral!
 """
 
 

@@ -24,7 +24,7 @@ import { VIDEO_FPS, CompositionPropsType } from '../../types/constants';
 loadFont();
 
 
-export const ArxflixComposition: React.FC<CompositionPropsType> = ({
+export const VistralComposition: React.FC<CompositionPropsType> = ({
 	subtitlesFileName,
 	audioFileName,
 	richContentFileName,

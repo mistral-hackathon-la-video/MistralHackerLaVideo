@@ -1,5 +1,5 @@
 import { Composition, delayRender } from 'remotion';
-import { ArxflixComposition, calculateMetadata } from './ArxflixComp/Main';
+import { VistralComposition, calculateMetadata } from './VistralComp/Main';
 import './style.css';
 import 'katex/dist/katex.min.css';
 import {
@@ -16,7 +16,7 @@ export const RemotionRoot: React.FC = () => {
 	return (
 		<Composition
 			id="LaVideo"
-			component={ArxflixComposition}
+			component={VistralComposition}
 			fps	={VIDEO_FPS}
 			width={VIDEO_WIDTH}
 			height={VIDEO_HEIGHT}

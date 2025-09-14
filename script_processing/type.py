@@ -42,4 +42,5 @@ class CreatedIllustration(RichContent):
 
 @dataclass
 class Headline(RichContent):
+    audio_path: str | None = None
     pass
